@@ -36,7 +36,6 @@ class AnnotatedReportTest {
         assertThat(report.size()).isZero();
     }
 
-    // constructor one report
     @Test
     void constructAnnotatedReportWithOneReport() {
         AnnotatedReport sut = new AnnotatedReport(ID, REPORT1);
@@ -100,6 +99,7 @@ class AnnotatedReportTest {
         assertThat(sut.getSizeOfOrigin()).containsOnly(entry("report-1", 1), entry("report-2", 2));
         assertThreeIssuesOfReport(sut);
     }
+
     @Test
     void logInfoAtAnnotatedReport() {
         AnnotatedReport sut = new AnnotatedReport("sut");
@@ -115,10 +115,4 @@ class AnnotatedReportTest {
         assertThat(sut.getReport().get(1)).isEqualTo(ISSUE2);
         assertThat(sut.getReport().get(2)).isEqualTo(ISSUE3);
     }
-
-    // add one
-
-    // add list
-
-    //blames
 }
