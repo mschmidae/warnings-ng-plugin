@@ -15,7 +15,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 /**
  * Tests the class {@link AnnotatedReport}.
  *
- * @author Ullrich Hafner
+ * @author Ullrich Hafner, Michael Schmid
  */
 class AnnotatedReportTest {
     private static final String ID = "id";
