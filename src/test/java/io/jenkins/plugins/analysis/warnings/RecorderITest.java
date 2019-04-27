@@ -1,9 +1,14 @@
 package io.jenkins.plugins.analysis.warnings;
 
 import java.io.IOException;
+import java.util.ArrayList;
+import java.util.List;
+import java.util.stream.Collectors;
+import java.util.stream.StreamSupport;
 
 import org.junit.Test;
 
+import com.gargoylesoftware.htmlunit.html.DomElement;
 import com.gargoylesoftware.htmlunit.html.HtmlForm;
 import com.gargoylesoftware.htmlunit.html.HtmlFormUtil;
 import com.gargoylesoftware.htmlunit.html.HtmlNumberInput;
@@ -13,6 +18,7 @@ import edu.hm.hafner.analysis.Severity;
 
 import hudson.model.FreeStyleProject;
 import hudson.model.HealthReport;
+import hudson.model.Project;
 import hudson.model.Result;
 
 import io.jenkins.plugins.analysis.core.model.AnalysisResult;
@@ -105,12 +111,6 @@ public class RecorderITest extends IntegrationTestWithJenkinsPerSuite {
 
         HtmlForm form = configPage.getFormByName("config");
 
-        /*
-        HtmlCheckBoxInput blameDisabledCheckBox = form.getInputByName("_.blameDisabled");
-        System.out.println(blameDisabledCheckBox.isChecked());
-        blameDisabledCheckBox.setChecked(false);
-        */
-
         HtmlNumberInput healthyInput = form.getInputByName("_.healthy");
         healthyInput.setText(String.valueOf(1));
 
@@ -122,7 +122,49 @@ public class RecorderITest extends IntegrationTestWithJenkinsPerSuite {
         AnalysisResult result = scheduleBuildAndAssertStatus(project, Result.SUCCESS);
         HealthReport healthReport = project.getBuildHealth();
 
+        JavaInfoPage infoPage = new JavaInfoPage(project, 1);
+
+        assertThat(infoPage.getInformationMessages()).contains("Enabling health report (Healthy=1, Unhealthy=9, Minimum Severity=LOW)");
+        assertThat(infoPage.getInformationMessages()).isEqualTo(result.getInfoMessages());
+        assertThat(infoPage.getErrorMessages()).isEqualTo(result.getErrorMessages());
         assertThat(result.getTotalSize()).isEqualTo(warnings);
         assertThat(healthReport.getScore()).isEqualTo(healthReportScore);
+    }
+
+    private class JavaInfoPage {
+        private final Project project;
+        private final int buildNumber;
+
+        JavaInfoPage(final Project project, final int buildNumber) {
+            this.project = project;
+            this.buildNumber = buildNumber;
+        }
+
+        public List<String> getErrorMessages() {
+            return getMessagesById("errors");
+        }
+
+        public List<String> getInformationMessages() {
+            return getMessagesById("info");
+        }
+
+        private List<String> getMessagesById(final String id) {
+            HtmlPage infoPage = getWebPage(project, getBuildNumber() + "/java/info");
+            DomElement info = infoPage.getElementById(id);
+
+            return info == null ? new ArrayList<>()
+                    : StreamSupport.stream(info.getChildElements().spliterator(), false)
+                    .map(DomElement::asText)
+                    .collect(Collectors.toList());
+        }
+
+
+        private Project getProject() {
+            return project;
+        }
+
+        private int getBuildNumber() {
+            return buildNumber;
+        }
     }
 }
