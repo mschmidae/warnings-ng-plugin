@@ -14,130 +14,109 @@ import com.gargoylesoftware.htmlunit.html.HtmlFormUtil;
 import com.gargoylesoftware.htmlunit.html.HtmlNumberInput;
 import com.gargoylesoftware.htmlunit.html.HtmlPage;
 
-import edu.hm.hafner.analysis.Severity;
-
 import hudson.model.FreeStyleProject;
 import hudson.model.HealthReport;
 import hudson.model.Project;
 import hudson.model.Result;
 
 import io.jenkins.plugins.analysis.core.model.AnalysisResult;
-import io.jenkins.plugins.analysis.core.steps.IssuesRecorder;
 import io.jenkins.plugins.analysis.core.testutil.IntegrationTestWithJenkinsPerSuite;
-import io.jenkins.plugins.analysis.core.util.HealthDescriptor;
 
 import static org.assertj.core.api.Assertions.*;
 
 public class RecorderITest extends IntegrationTestWithJenkinsPerSuite {
 
-    private static final HealthDescriptor HEALTH_DESCRIPTOR = new HealthDescriptor(1, 9, Severity.WARNING_LOW);
+    private static final int HEALTHY_THRESHOLD = 1;
+    private static final int UNHEALTHY_THRESHOLD = 9;
 
     @Test
-    public void shouldCreateFreestyle() {
-        FreeStyleProject project = createFreeStyleProject();
-        copySingleFileToWorkspace(project, "javac.txt", "javac.txt");
-
-        Java java = new Java();
-        java.setPattern("javac.txt");
-
-        IssuesRecorder recorder = enableWarnings(project, java);
-        recorder.setHealthy(1);
-        recorder.setUnhealthy(9);
-        recorder.setMinimumSeverity("LOW");
-
-        AnalysisResult result = scheduleBuildAndAssertStatus(project, Result.SUCCESS);
-
-        HealthReport healthReport = project.getBuildHealth();
-        assertThat(healthReport.getScore()).isEqualTo(80);
-
-        System.out.println(healthReport.getScore());
-
+    public void noWarningsWithHealthReport100() throws IOException {
+        verifyInfoPageWithHealthReport("javac_no_warning.txt", 0, 100);
     }
 
     @Test
-    public void healthReportOneHealthyNineUnhealthyWithNoWarings() throws IOException {
-        verifyHealthReportOfJavaFreeStyleJob("javac_no_warning.txt", 0, 100);
-        verifyHealthReportOfJavaFreeStyleJobConfiguredByGui("javac_no_warning.txt", 0, 100);
+    public void noWarningsWithoutHealthReport() throws IOException {
+        verifyInfoPageWithoutHealthReport("javac_no_warning.txt", 0);
     }
 
     @Test
-    public void healthReportOneHealthyNineUnhealthyWithOneWarings() throws IOException {
-        verifyHealthReportOfJavaFreeStyleJob("javac_one_warning.txt", 1, 90);
-        verifyHealthReportOfJavaFreeStyleJobConfiguredByGui("javac_one_warning.txt", 1, 90);
+    public void oneWarningWithHealthReport90() throws IOException {
+        verifyInfoPageWithHealthReport("javac_one_warning.txt", 1, 90);
     }
 
     @Test
-    public void healthReportOneHealthyNineUnhealthyWithNineWarings() throws IOException {
-        verifyHealthReportOfJavaFreeStyleJob("javac_9_warnings.txt", 9, 10);
-        verifyHealthReportOfJavaFreeStyleJobConfiguredByGui("javac_9_warnings.txt", 9, 10);
+    public void oneWarningWithoutHealthReport() throws IOException {
+        verifyInfoPageWithoutHealthReport("javac_one_warning.txt", 1);
     }
 
     @Test
-    public void healthReportOneHealthyNineUnhealthyWithTenWarings() throws IOException {
-        verifyHealthReportOfJavaFreeStyleJob("javac_10_warnings.txt", 10, 0);
-        verifyHealthReportOfJavaFreeStyleJobConfiguredByGui("javac_10_warnings.txt", 10, 0);
+    public void nineWarningsWithHealthReport10() throws IOException {
+        verifyInfoPageWithHealthReport("javac_9_warnings.txt", 9, 10);
     }
 
-    private void verifyHealthReportOfJavaFreeStyleJob(final String javacFile, final int warnings, final int healthReportScore) {
-        FreeStyleProject project = createFreeStyleProject();
-        copySingleFileToWorkspace(project, javacFile, "javac.txt");
-
-        Java java = new Java();
-        java.setPattern("javac.txt");
-
-        IssuesRecorder recorder = enableWarnings(project, java);
-        recorder.setHealthy(1);
-        recorder.setUnhealthy(9);
-        recorder.setMinimumSeverity("LOW");
-
-        AnalysisResult result = scheduleBuildAndAssertStatus(project, Result.SUCCESS);
-        HealthReport healthReport = project.getBuildHealth();
-
-        assertThat(result.getTotalSize()).isEqualTo(warnings);
-        assertThat(healthReport.getScore()).isEqualTo(healthReportScore);
+    @Test
+    public void nineWarningsWithoutHealthReport() throws IOException {
+        verifyInfoPageWithoutHealthReport("javac_9_warnings.txt", 9);
     }
 
-    private void verifyHealthReportOfJavaFreeStyleJobConfiguredByGui(final String javacFile, final int warnings, final int healthReportScore)
+    @Test
+    public void tenWarningsWithHealthReport0() throws IOException {
+        verifyInfoPageWithHealthReport("javac_10_warnings.txt", 10, 0);
+    }
+
+    @Test
+    public void tenWarningsWithoutHealthReport() throws IOException {
+        verifyInfoPageWithoutHealthReport("javac_10_warnings.txt", 10);
+    }
+
+    private void verifyInfoPageWithoutHealthReport(final String javacFile, final int warnings)
+            throws IOException {
+        verifyInfoPage(javacFile, warnings, 0, false);
+    }
+
+    private void verifyInfoPageWithHealthReport(final String javacFile, final int warnings,
+            final int healthReportScore)
+            throws IOException {
+        verifyInfoPage(javacFile, warnings, healthReportScore, true);
+    }
+
+    private void verifyInfoPage(final String javacFile, final int warnings,
+            final int healthReportScore, final boolean withHealthReport)
             throws IOException {
         FreeStyleProject project = createFreeStyleProject();
         copySingleFileToWorkspace(project, javacFile, "javac.txt");
 
         Java java = new Java();
         java.setPattern("javac.txt");
+        enableWarnings(project, java);
 
-        IssuesRecorder recorder = enableWarnings(project, java);
-
-        HtmlPage configPage = getWebPage(project, "configure");
-
-        HtmlForm form = configPage.getFormByName("config");
-
-        HtmlNumberInput healthyInput = form.getInputByName("_.healthy");
-        healthyInput.setText(String.valueOf(1));
-
-        HtmlNumberInput unhealthyInput = form.getInputByName("_.unhealthy");
-        unhealthyInput.setText(String.valueOf(9));
-
-        HtmlFormUtil.submit(form);
+        if (withHealthReport) {
+            WarningsRecorderConfigurationPage config = new WarningsRecorderConfigurationPage(project);
+            config.setHealthyThreshold(HEALTHY_THRESHOLD);
+            config.setUnhealthyThreshold(UNHEALTHY_THRESHOLD);
+            config.submit();
+        }
 
         AnalysisResult result = scheduleBuildAndAssertStatus(project, Result.SUCCESS);
-        HealthReport healthReport = project.getBuildHealth();
-
         JavaInfoPage infoPage = new JavaInfoPage(project, 1);
 
-        assertThat(infoPage.getInformationMessages()).contains("Enabling health report (Healthy=1, Unhealthy=9, Minimum Severity=LOW)");
+        assertThat(result.getTotalSize()).isEqualTo(warnings);
         assertThat(infoPage.getInformationMessages()).isEqualTo(result.getInfoMessages());
         assertThat(infoPage.getErrorMessages()).isEqualTo(result.getErrorMessages());
-        assertThat(result.getTotalSize()).isEqualTo(warnings);
-        assertThat(healthReport.getScore()).isEqualTo(healthReportScore);
+
+        if (withHealthReport) {
+            assertThat(infoPage.getInformationMessages()).contains(
+                    "Enabling health report (Healthy=1, Unhealthy=9, Minimum Severity=LOW)");
+            HealthReport healthReport = project.getBuildHealth();
+            assertThat(healthReport.getScore()).isEqualTo(healthReportScore);
+        }
     }
 
     private class JavaInfoPage {
-        private final Project project;
-        private final int buildNumber;
+        private final HtmlPage infoPage;
 
         JavaInfoPage(final Project project, final int buildNumber) {
-            this.project = project;
-            this.buildNumber = buildNumber;
+            infoPage = getWebPage(project, buildNumber + "/java/info");
         }
 
         public List<String> getErrorMessages() {
@@ -149,8 +128,7 @@ public class RecorderITest extends IntegrationTestWithJenkinsPerSuite {
         }
 
         private List<String> getMessagesById(final String id) {
-            HtmlPage infoPage = getWebPage(project, getBuildNumber() + "/java/info");
-            DomElement info = infoPage.getElementById(id);
+            DomElement info = getInfoPage().getElementById(id);
 
             return info == null ? new ArrayList<>()
                     : StreamSupport.stream(info.getChildElements().spliterator(), false)
@@ -158,13 +136,52 @@ public class RecorderITest extends IntegrationTestWithJenkinsPerSuite {
                     .collect(Collectors.toList());
         }
 
+        public HtmlPage getInfoPage() {
+            return infoPage;
+        }
+    }
 
-        private Project getProject() {
-            return project;
+    private class WarningsRecorderConfigurationPage {
+        private static final String ID_HEALTHY_THRESHOLD = "_.healthy";
+        private static final String ID_UNHEALTHY_THRESHOLD = "_.unhealthy";
+        private final HtmlForm form;
+
+        WarningsRecorderConfigurationPage(final Project project) {
+            form = getWebPage(project, "configure").getFormByName("config");
         }
 
-        private int getBuildNumber() {
-            return buildNumber;
+        public int getHealthyThreshold() {
+            return getNumber(ID_HEALTHY_THRESHOLD);
+        }
+
+        public void setHealthyThreshold(final int healthy) {
+            setInput(ID_HEALTHY_THRESHOLD, healthy);
+        }
+
+        public int getUnhealthyThreshold() {
+            return getNumber(ID_UNHEALTHY_THRESHOLD);
+        }
+
+        public void setUnhealthyThreshold(final int unhealthy) {
+            setInput(ID_UNHEALTHY_THRESHOLD, unhealthy);
+        }
+
+        public void submit() throws IOException {
+            HtmlFormUtil.submit(getForm());
+        }
+
+        private void setInput(final String id, final int value) {
+            HtmlNumberInput input = getForm().getInputByName(id);
+            input.setText(String.valueOf(value));
+        }
+
+        private int getNumber(final String id) {
+            HtmlNumberInput input = getForm().getInputByName(id);
+            return Integer.parseInt(input.getText());
+        }
+
+        private HtmlForm getForm() {
+            return form;
         }
     }
 }
