@@ -37,7 +37,7 @@ public class RecorderITest extends IntegrationTestWithJenkinsPerSuite {
     /**
      * Verify the info page of the Java parser with no warnings as input.
      * Verify the health report (healthy=1, unhealthy=9) configured by the web UI has a score of 100
-     * @throws IOException
+     * @throws IOException when something went wrong with the web ui access
      */
     @Test
     public void noWarningsWithHealthReport100() throws IOException {
@@ -46,7 +46,7 @@ public class RecorderITest extends IntegrationTestWithJenkinsPerSuite {
 
     /**
      * Verify the info page of the Java parser with no warnings as input and no configured health report.
-     * @throws IOException
+     * @throws IOException when something went wrong with the web ui access
      */
     @Test
     public void noWarningsWithoutHealthReport() throws IOException {
@@ -56,7 +56,7 @@ public class RecorderITest extends IntegrationTestWithJenkinsPerSuite {
     /**
      * Verify the info page of the Java parser with one warning as input.
      * Verify the health report (healthy=1, unhealthy=9) configured by the web UI has a score of 90
-     * @throws IOException
+     * @throws IOException when something went wrong with the web ui access
      */
     @Test
     public void oneWarningWithHealthReport90() throws IOException {
@@ -65,7 +65,7 @@ public class RecorderITest extends IntegrationTestWithJenkinsPerSuite {
 
     /**
      * Verify the info page of the Java parser with one warning as input and no configured health report.
-     * @throws IOException
+     * @throws IOException when something went wrong with the web ui access
      */
     @Test
     public void oneWarningWithoutHealthReport() throws IOException {
@@ -75,7 +75,7 @@ public class RecorderITest extends IntegrationTestWithJenkinsPerSuite {
     /**
      * Verify the info page of the Java parser with nine warnings as input.
      * Verify the health report (healthy=1, unhealthy=9) configured by the web UI has a score of 10
-     * @throws IOException
+     * @throws IOException when something went wrong with the web ui access
      */
     @Test
     public void nineWarningsWithHealthReport10() throws IOException {
@@ -84,17 +84,17 @@ public class RecorderITest extends IntegrationTestWithJenkinsPerSuite {
 
     /**
      * Verify the info page of the Java parser with nine warnings as input and no configured health report.
-     * @throws IOException
+     * @throws IOException when something went wrong with the web ui access
      */
     @Test
     public void nineWarningsWithoutHealthReport() throws IOException {
-        verifyInfoPage("javac_9_warnings.txt", 9, 0 , false);
+        verifyInfoPage("javac_9_warnings.txt", 9, 0, false);
     }
 
     /**
      * Verify the info page of the Java parser with ten warnings as input.
      * Verify the health report (healthy=1, unhealthy=9) configured by the web UI has a score of 0
-     * @throws IOException
+     * @throws IOException when something went wrong with the web ui access
      */
     @Test
     public void tenWarningsWithHealthReport0() throws IOException {
@@ -103,7 +103,7 @@ public class RecorderITest extends IntegrationTestWithJenkinsPerSuite {
 
     /**
      * Verify the info page of the Java parser with ten warnings as input and no configured health report.
-     * @throws IOException
+     * @throws IOException when something went wrong with the web ui access
      */
     @Test
     public void tenWarningsWithoutHealthReport() throws IOException {
@@ -140,8 +140,15 @@ public class RecorderITest extends IntegrationTestWithJenkinsPerSuite {
             HealthReport healthReport = project.getBuildHealth();
             assertThat(healthReport.getScore()).isEqualTo(healthReportScore);
         }
+        else {
+            assertThat(infoPage.getInformationMessages()).contains(
+                    "Health report is disabled - skipping");
+        }
     }
 
+    /**
+     * Encapsulated access to the Java parser info page by UI - Page Object Pattern.
+     */
     private class JavaInfoPage {
         private final HtmlPage infoPage;
 
@@ -171,6 +178,9 @@ public class RecorderITest extends IntegrationTestWithJenkinsPerSuite {
         }
     }
 
+    /**
+     * Encapsulated access to the warnings recorder configuration page by UI - Page Object Pattern.
+     */
     private class WarningsRecorderConfigurationPage {
         private static final String ID_HEALTHY_THRESHOLD = "_.healthy";
         private static final String ID_UNHEALTHY_THRESHOLD = "_.unhealthy";
