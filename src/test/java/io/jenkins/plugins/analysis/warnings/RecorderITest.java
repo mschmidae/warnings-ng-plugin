@@ -24,60 +24,90 @@ import io.jenkins.plugins.analysis.core.testutil.IntegrationTestWithJenkinsPerSu
 
 import static org.assertj.core.api.Assertions.*;
 
+/**
+ * Verify the info page of the Java parser and the health report configured by the web UI.
+ *
+ * @author Michael Schmid
+ */
 public class RecorderITest extends IntegrationTestWithJenkinsPerSuite {
 
     private static final int HEALTHY_THRESHOLD = 1;
     private static final int UNHEALTHY_THRESHOLD = 9;
 
+    /**
+     * Verify the info page of the Java parser with no warnings as input.
+     * Verify the health report (healthy=1, unhealthy=9) configured by the web UI has a score of 100
+     * @throws IOException
+     */
     @Test
     public void noWarningsWithHealthReport100() throws IOException {
-        verifyInfoPageWithHealthReport("javac_no_warning.txt", 0, 100);
+        verifyInfoPage("javac_no_warning.txt", 0, 100, true);
     }
 
+    /**
+     * Verify the info page of the Java parser with no warnings as input and no configured health report.
+     * @throws IOException
+     */
     @Test
     public void noWarningsWithoutHealthReport() throws IOException {
-        verifyInfoPageWithoutHealthReport("javac_no_warning.txt", 0);
+        verifyInfoPage("javac_no_warning.txt", 0, 0, false);
     }
 
+    /**
+     * Verify the info page of the Java parser with one warning as input.
+     * Verify the health report (healthy=1, unhealthy=9) configured by the web UI has a score of 90
+     * @throws IOException
+     */
     @Test
     public void oneWarningWithHealthReport90() throws IOException {
-        verifyInfoPageWithHealthReport("javac_one_warning.txt", 1, 90);
+        verifyInfoPage("javac_one_warning.txt", 1, 90, true);
     }
 
+    /**
+     * Verify the info page of the Java parser with one warning as input and no configured health report.
+     * @throws IOException
+     */
     @Test
     public void oneWarningWithoutHealthReport() throws IOException {
-        verifyInfoPageWithoutHealthReport("javac_one_warning.txt", 1);
+        verifyInfoPage("javac_one_warning.txt", 1, 0, false);
     }
 
+    /**
+     * Verify the info page of the Java parser with nine warnings as input.
+     * Verify the health report (healthy=1, unhealthy=9) configured by the web UI has a score of 10
+     * @throws IOException
+     */
     @Test
     public void nineWarningsWithHealthReport10() throws IOException {
-        verifyInfoPageWithHealthReport("javac_9_warnings.txt", 9, 10);
+        verifyInfoPage("javac_9_warnings.txt", 9, 10, true);
     }
 
+    /**
+     * Verify the info page of the Java parser with nine warnings as input and no configured health report.
+     * @throws IOException
+     */
     @Test
     public void nineWarningsWithoutHealthReport() throws IOException {
-        verifyInfoPageWithoutHealthReport("javac_9_warnings.txt", 9);
+        verifyInfoPage("javac_9_warnings.txt", 9, 0 , false);
     }
 
+    /**
+     * Verify the info page of the Java parser with ten warnings as input.
+     * Verify the health report (healthy=1, unhealthy=9) configured by the web UI has a score of 0
+     * @throws IOException
+     */
     @Test
     public void tenWarningsWithHealthReport0() throws IOException {
-        verifyInfoPageWithHealthReport("javac_10_warnings.txt", 10, 0);
+        verifyInfoPage("javac_10_warnings.txt", 10, 0, true);
     }
 
+    /**
+     * Verify the info page of the Java parser with ten warnings as input and no configured health report.
+     * @throws IOException
+     */
     @Test
     public void tenWarningsWithoutHealthReport() throws IOException {
-        verifyInfoPageWithoutHealthReport("javac_10_warnings.txt", 10);
-    }
-
-    private void verifyInfoPageWithoutHealthReport(final String javacFile, final int warnings)
-            throws IOException {
-        verifyInfoPage(javacFile, warnings, 0, false);
-    }
-
-    private void verifyInfoPageWithHealthReport(final String javacFile, final int warnings,
-            final int healthReportScore)
-            throws IOException {
-        verifyInfoPage(javacFile, warnings, healthReportScore, true);
+        verifyInfoPage("javac_10_warnings.txt", 10, 0, false);
     }
 
     private void verifyInfoPage(final String javacFile, final int warnings,
@@ -119,11 +149,11 @@ public class RecorderITest extends IntegrationTestWithJenkinsPerSuite {
             infoPage = getWebPage(project, buildNumber + "/java/info");
         }
 
-        public List<String> getErrorMessages() {
+        List<String> getErrorMessages() {
             return getMessagesById("errors");
         }
 
-        public List<String> getInformationMessages() {
+        List<String> getInformationMessages() {
             return getMessagesById("info");
         }
 
@@ -136,7 +166,7 @@ public class RecorderITest extends IntegrationTestWithJenkinsPerSuite {
                     .collect(Collectors.toList());
         }
 
-        public HtmlPage getInfoPage() {
+        private HtmlPage getInfoPage() {
             return infoPage;
         }
     }
@@ -150,23 +180,23 @@ public class RecorderITest extends IntegrationTestWithJenkinsPerSuite {
             form = getWebPage(project, "configure").getFormByName("config");
         }
 
-        public int getHealthyThreshold() {
+        int getHealthyThreshold() {
             return getNumber(ID_HEALTHY_THRESHOLD);
         }
 
-        public void setHealthyThreshold(final int healthy) {
+        void setHealthyThreshold(final int healthy) {
             setInput(ID_HEALTHY_THRESHOLD, healthy);
         }
 
-        public int getUnhealthyThreshold() {
+        int getUnhealthyThreshold() {
             return getNumber(ID_UNHEALTHY_THRESHOLD);
         }
 
-        public void setUnhealthyThreshold(final int unhealthy) {
+        void setUnhealthyThreshold(final int unhealthy) {
             setInput(ID_UNHEALTHY_THRESHOLD, unhealthy);
         }
 
-        public void submit() throws IOException {
+        void submit() throws IOException {
             HtmlFormUtil.submit(getForm());
         }
 
