@@ -1,0 +1,5 @@
+Notice: Output directory `doc/doxygen/framework' does not exist. I have created it for you.
+CentralDifferenceSolver.cpp:11: Warning: reached end of file while inside a dot block!
+The command that should end the block seems to be missing!
+ 
+LCPcalc.cpp:12: Warning: the name `lcp_lexicolemke.c' supplied as the second argument in the \file statement is not an input file
