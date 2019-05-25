@@ -1,5 +1,6 @@
 package io.jenkins.plugins.analysis.warnings.recorder;
 
+import java.util.Arrays;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Set;
@@ -10,16 +11,15 @@ import org.junit.Test;
 
 import org.jenkinsci.test.acceptance.docker.DockerClassRule;
 import org.jenkinsci.test.acceptance.docker.fixtures.JavaContainer;
+import org.jenkinsci.utils.process.CommandBuilder;
 import hudson.model.FreeStyleProject;
-import hudson.model.Queue;
 import hudson.model.Slave;
 import hudson.plugins.sshslaves.SSHLauncher;
-import hudson.security.SecurityRealm;
 import hudson.slaves.DumbSlave;
+import hudson.slaves.EnvironmentVariablesNodeProperty;
+import hudson.slaves.NodeProperty;
 import hudson.tasks.Maven;
-import hudson.tasks.Shell;
 
-import jenkins.AgentProtocol;
 import jenkins.security.s2m.AdminWhitelistRule;
 
 import io.jenkins.plugins.analysis.core.model.AnalysisResult;
@@ -30,7 +30,7 @@ import io.jenkins.plugins.analysis.warnings.MavenConsole;
 public class DistributedExecutionITest extends IntegrationTestWithJenkinsPerSuite {
 
     @ClassRule
-    public static DockerClassRule<JavaContainer> dockerUbuntu = new DockerClassRule<>(JavaContainer.class);
+    public static DockerClassRule<JavaContainer> DOCKER = new DockerClassRule<>(JavaContainer.class);
 
 
     @Test
@@ -61,9 +61,10 @@ public class DistributedExecutionITest extends IntegrationTestWithJenkinsPerSuit
 
     @Test
     public void distributionWithDockerSlave() throws Exception {
-        JavaContainer container = dockerUbuntu.create();
+        JavaContainer container = DOCKER.create();
         //JavaContainer container = new JavaContainer();
         DumbSlave slave = new DumbSlave("docker", "/home/test", new SSHLauncher(container.ipBound(22), container.port(22), "test", "test", "", "-Dfile.encoding=ISO-8859-1"));
+        slave.setNodeProperties(Arrays.asList(new EnvironmentVariablesNodeProperty(new EnvironmentVariablesNodeProperty.Entry("JAVA_HOME", "/usr/lib/jvm/java-8-openjdk-amd64/jre"))));
         getJenkins().jenkins.addNode(slave);
         getJenkins().waitOnline(slave);
 
