@@ -9,10 +9,13 @@ import java.util.concurrent.ExecutionException;
 import org.junit.ClassRule;
 import org.junit.Test;
 
+import org.jenkinsci.plugins.workflow.cps.CpsFlowDefinition;
+import org.jenkinsci.plugins.workflow.job.WorkflowJob;
 import org.jenkinsci.test.acceptance.docker.DockerClassRule;
 import org.jenkinsci.test.acceptance.docker.fixtures.JavaContainer;
 import org.jenkinsci.utils.process.CommandBuilder;
 import hudson.model.FreeStyleProject;
+import hudson.model.Result;
 import hudson.model.Slave;
 import hudson.plugins.sshslaves.SSHLauncher;
 import hudson.slaves.DumbSlave;
@@ -52,7 +55,8 @@ public class DistributedExecutionITest extends IntegrationTestWithJenkinsPerSuit
 
 */
         //executeOnWorker(slave);
-        executeMavenOnWorker(slave);
+        //executeMavenOnWorker(slave);
+        executePipelineWorker(slave);
 
         System.out.println("End");
 
@@ -104,6 +108,7 @@ public class DistributedExecutionITest extends IntegrationTestWithJenkinsPerSuit
 
         System.out.println(getJenkins().jenkins.getSecurity());
         System.out.println(getJenkins().jenkins.getSecurityRealm());
+        getJenkins().jenkins.disableSecurity();
         //ToDo Security
 
         Set<String> agentProtocols = new HashSet<>();
@@ -120,15 +125,42 @@ public class DistributedExecutionITest extends IntegrationTestWithJenkinsPerSuit
         copySingleFileToAgentWorkspace(worker, project, "eclipse_4_Warnings.txt", "eclipse_4_Warnings-issues.txt");
         copySingleFileToAgentWorkspace(worker, project, "pom.xml", "pom.xml");
         enableEclipseWarnings(project);
-        IssuesRecorder recorder = enableWarnings(project, createTool(new MavenConsole(), ""));
-        /*
-        IssuesRecorder publisher = new IssuesRecorder();
-        publisher.setTool(new MavenConsole());
-        project.getPublishersList().add(publisher);
-*/
+        enableWarnings(project, createTool(new MavenConsole(), ""));
 
 
         getJenkins().jenkins.getQueue().schedule(project).getFuture().get();
+
+        List<AnalysisResult> result = getAnalysisResults(project.getLastBuild());
+        System.out.println(result.size());
+    }
+
+    private void executePipelineWorker(final Slave worker) throws ExecutionException, InterruptedException {
+        WorkflowJob project = createPipeline();
+        project.setDefinition(new CpsFlowDefinition("node('" + worker.getNodeName() + "') {\n"
+                + "\n"
+                + "    echo '[javac] Test.java:39: warning: Test Warning'\n"
+                + "\n"
+                + "    echo 'MediaPortal.cs(3001,5): warning CS0162: Hier kommt der Warnings Text'\n"
+                + "\n"
+                + "    recordIssues tools: [msBuild(), java()]\n"
+                + "\n"
+                + "}", false));
+
+        System.out.println(getJenkins().jenkins.getSecurity());
+        System.out.println(getJenkins().jenkins.getSecurityRealm());
+        getJenkins().jenkins.disableSecurity();
+        //ToDo Security
+
+        Set<String> agentProtocols = new HashSet<>();
+        agentProtocols.add("JNLP4-connect");
+        agentProtocols.add("Ping");
+        getJenkins().jenkins.setAgentProtocols(agentProtocols);
+        getJenkins().jenkins.getInjector().getInstance(AdminWhitelistRule.class)
+                .setMasterKillSwitch(false);
+
+
+        buildWithResult(project, Result.SUCCESS);
+
 
         List<AnalysisResult> result = getAnalysisResults(project.getLastBuild());
         System.out.println(result.size());
