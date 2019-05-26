@@ -26,6 +26,8 @@ import io.jenkins.plugins.analysis.core.testutil.IntegrationTestWithJenkinsPerSu
 import io.jenkins.plugins.analysis.warnings.Doxygen;
 import io.jenkins.plugins.analysis.warnings.Java;
 
+import static org.assertj.core.api.Assertions.*;
+
 public class RealGitITest extends IntegrationTestWithJenkinsPerSuite {
 
     @Rule
@@ -69,14 +71,7 @@ public class RealGitITest extends IntegrationTestWithJenkinsPerSuite {
         GitSCM git = builder.build();
 
         FreeStyleProject project = createFreeStyleProject();
-        /*
-        createFileInWorkspace(project, "build/doxygen/doxygen/doxygen.log",
-                "Notice: Output directory `build/doxygen/doxygen' does not exist. I have created it for you.\n"
-                + "src/CentralDifferenceSolver.cpp:11: Warning: reached end of file while inside a dot block!\n"
-                + "The command that should end the block seems to be missing!\n"
-                + " \n"
-                + "src/LCPcalc.cpp:12: Warning: the name `lcp_lexicolemke.c' supplied as the second argument in the \\file statement is not an input file");
-        */
+
         copySingleFileToWorkspace(project, "doxygen.log", "build/doxygen/doxygen/doxygen.log");
         project.setScm(git);
         project.getBuildersList().add(new CreateFileBuilder("build/doxygen/doxygen/doxygen.log",
@@ -88,32 +83,23 @@ public class RealGitITest extends IntegrationTestWithJenkinsPerSuite {
 
 
         IssuesRecorder recorder = enableWarnings(project, createTool(new Doxygen(), "build/doxygen/doxygen/doxygen.log"));
-        recorder.setBlameDisabled(true);
-
         recorder.setAggregatingResults(true);
         recorder.setEnabledForFailure(true);
 
-        AnalysisResult result = scheduleSuccessfulBuild(project);
-        result.getBlames().getRequests().forEach(r -> r.getCommit(1));
 
-        System.out.println("End");
+        scheduleSuccessfulBuild(project);
+        AnalysisResult result = scheduleSuccessfulBuild(project);
+        assertThat(result.getErrorMessages()).doesNotContain("Can't determine head commit using 'git rev-parse'. Skipping blame.");
     }
 
     @Test
     public void gitBlameDifferentDirectoryPipeline() throws Exception {
-        //CentralDifferenceSolver.cpp
-        //LCPcalc.cpp
 
         sampleRepo.init();
         sampleRepo.write("CentralDifferenceSolver.cpp", "1\n2\n3\n4\n5\n6\n7\n8\n9\n10\n11\n12");
         sampleRepo.write("LCPcalc.cpp", "1\n2\n3\n4\n5\n6\n7\n8\n9\n10\n11\n12\n13");
         sampleRepo.git("add", "CentralDifferenceSolver.cpp", "LCPcalc.cpp");
         sampleRepo.git("commit", "--all", "--message=init");
-
-        GitSCMBuilder builder = new GitSCMBuilder(new SCMHead("master"), null, sampleRepo.fileUrl(), null);
-        RelativeTargetDirectory extension = new RelativeTargetDirectory("src"); // JENKINS-57260
-        builder.withExtension(extension);
-        GitSCM git = builder.build();
 
         WorkflowJob project = createPipeline();
 
@@ -139,32 +125,10 @@ public class RealGitITest extends IntegrationTestWithJenkinsPerSuite {
                 + "  }\n"
                 + "}\n"
                 + "}}", false));
-        /*
-        createFileInWorkspace(project, "build/doxygen/doxygen/doxygen.log",
-                "Notice: Output directory `build/doxygen/doxygen' does not exist. I have created it for you.\n"
-                + "src/CentralDifferenceSolver.cpp:11: Warning: reached end of file while inside a dot block!\n"
-                + "The command that should end the block seems to be missing!\n"
-                + " \n"
-                + "src/LCPcalc.cpp:12: Warning: the name `lcp_lexicolemke.c' supplied as the second argument in the \\file statement is not an input file");
-        */
-        /*
-        copySingleFileToWorkspace(project, "doxygen.log", "build/doxygen/doxygen/doxygen.log");
-        project.setScm(git);
-        project.getBuildersList().add(new CreateFileBuilder("build/doxygen/doxygen/doxygen.log",
-                "Notice: Output directory `build/doxygen/doxygen' does not exist. I have created it for you.\n"
-                        + "CentralDifferenceSolver.cpp:11: Warning: reached end of file while inside a dot block!\n"
-                        + "The command that should end the block seems to be missing!\n"
-                        + " \n"
-                        + "LCPcalc.cpp:12: Warning: the name `lcp_lexicolemke.c' supplied as the second argument in the \\file statement is not an input file"));
 
 
-        IssuesRecorder recorder = enableWarnings(project, createTool(new Doxygen(), "build/doxygen/doxygen/doxygen.log"));
-        recorder.setAggregatingResults(true);
-        recorder.setEnabledForFailure(true);
-*/
+        scheduleSuccessfulBuild(project);
         AnalysisResult result = scheduleSuccessfulBuild(project);
-        result.getBlames().getRequests().forEach(r -> r.getCommit(1));
-
-        System.out.println("End");
+        assertThat(result.getErrorMessages()).doesNotContain("Can't determine head commit using 'git rev-parse'. Skipping blame.");
     }
 }
