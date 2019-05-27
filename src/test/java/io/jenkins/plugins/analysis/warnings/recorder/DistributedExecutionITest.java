@@ -18,17 +18,21 @@ import hudson.model.FreeStyleProject;
 import hudson.model.Result;
 import hudson.model.Slave;
 import hudson.plugins.sshslaves.SSHLauncher;
+import hudson.security.SecurityRealm;
 import hudson.slaves.DumbSlave;
 import hudson.slaves.EnvironmentVariablesNodeProperty;
 import hudson.slaves.NodeProperty;
 import hudson.tasks.Maven;
 
+import jenkins.MasterToSlaveFileCallable;
 import jenkins.security.s2m.AdminWhitelistRule;
 
 import io.jenkins.plugins.analysis.core.model.AnalysisResult;
 import io.jenkins.plugins.analysis.core.steps.IssuesRecorder;
 import io.jenkins.plugins.analysis.core.testutil.IntegrationTestWithJenkinsPerSuite;
+import io.jenkins.plugins.analysis.warnings.Java;
 import io.jenkins.plugins.analysis.warnings.MavenConsole;
+import io.jenkins.plugins.analysis.warnings.checkstyle.CheckStyle;
 
 public class DistributedExecutionITest extends IntegrationTestWithJenkinsPerSuite {
 
@@ -108,23 +112,28 @@ public class DistributedExecutionITest extends IntegrationTestWithJenkinsPerSuit
 
         System.out.println(getJenkins().jenkins.getSecurity());
         System.out.println(getJenkins().jenkins.getSecurityRealm());
+        System.out.println(getJenkins().jenkins.isUseSecurity());
         getJenkins().jenkins.disableSecurity();
+        System.out.println(getJenkins().jenkins.isUseSecurity());
         //ToDo Security
 
         Set<String> agentProtocols = new HashSet<>();
         agentProtocols.add("JNLP4-connect");
         agentProtocols.add("Ping");
         getJenkins().jenkins.setAgentProtocols(agentProtocols);
-        getJenkins().jenkins.getInjector().getInstance(AdminWhitelistRule.class)
-                .setMasterKillSwitch(false);
 
+        getJenkins().jenkins.getInjector().getInstance(AdminWhitelistRule.class)
+                .setMasterKillSwitch(true);
 
         getJenkins().jenkins.getQueue().schedule(project).getFuture().get();
 
-        project.getBuildersList().add(new Maven("verify", null));
-        copySingleFileToAgentWorkspace(worker, project, "eclipse_4_Warnings.txt", "eclipse_4_Warnings-issues.txt");
+        project.getBuildersList().add(new Maven("verify -Dmaven.compiler.showWarnings=true", null));
+        copySingleFileToAgentWorkspace(worker, project, "real-sourcecode/ClassWithWarnings.java", "src/main/java/ClassWithWarnings.java");
+        //copySingleFileToAgentWorkspace(worker, project, "eclipse_4_Warnings.txt", "eclipse_4_Warnings-issues.txt");
         copySingleFileToAgentWorkspace(worker, project, "pom.xml", "pom.xml");
-        enableEclipseWarnings(project);
+        //enableEclipseWarnings(project);
+        enableWarnings(project, createTool(new CheckStyle(),  ""));
+        enableWarnings(project, createTool(new Java(),  ""));
         enableWarnings(project, createTool(new MavenConsole(), ""));
 
 
