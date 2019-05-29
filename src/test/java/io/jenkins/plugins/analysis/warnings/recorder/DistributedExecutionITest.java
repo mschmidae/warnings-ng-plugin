@@ -21,6 +21,7 @@ import hudson.plugins.sshslaves.SSHLauncher;
 import hudson.slaves.DumbSlave;
 import hudson.slaves.EnvironmentVariablesNodeProperty;
 import hudson.tasks.Maven;
+import hudson.tasks.Shell;
 
 import jenkins.security.s2m.AdminWhitelistRule;
 
@@ -161,7 +162,7 @@ public class DistributedExecutionITest extends IntegrationTestWithJenkinsPerSuit
                 .setMasterKillSwitch(true);
 
         getJenkins().jenkins.getQueue().schedule(project).getFuture().get();
-        project.getBuildersList().add(new hudson.tasks.Shell("make"));
+        project.getBuildersList().add(new Shell("make"));
 
         copySingleFileToAgentWorkspace(worker, project, "real-sourcecode/ClassWithWarnings.java", "src/main/java/ClassWithWarnings.java");
         //copySingleFileToAgentWorkspace(worker, project, "eclipse_4_Warnings.txt", "eclipse_4_Warnings-issues.txt");
