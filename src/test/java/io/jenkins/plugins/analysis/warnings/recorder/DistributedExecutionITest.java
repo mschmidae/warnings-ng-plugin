@@ -14,8 +14,10 @@ import org.jenkinsci.plugins.workflow.cps.CpsFlowDefinition;
 import org.jenkinsci.plugins.workflow.job.WorkflowJob;
 import org.jenkinsci.test.acceptance.docker.DockerClassRule;
 import org.jenkinsci.test.acceptance.docker.fixtures.JavaContainer;
+import hudson.model.Descriptor.FormException;
 import hudson.model.FreeStyleProject;
 import hudson.model.Result;
+import hudson.model.Run;
 import hudson.model.Slave;
 import hudson.plugins.sshslaves.SSHLauncher;
 import hudson.slaves.DumbSlave;
@@ -31,6 +33,8 @@ import io.jenkins.plugins.analysis.warnings.Java;
 import io.jenkins.plugins.analysis.warnings.MavenConsole;
 import io.jenkins.plugins.analysis.warnings.checkstyle.CheckStyle;
 
+import static org.assertj.core.api.Assertions.*;
+
 public class DistributedExecutionITest extends IntegrationTestWithJenkinsPerSuite {
 
     @ClassRule
@@ -38,52 +42,54 @@ public class DistributedExecutionITest extends IntegrationTestWithJenkinsPerSuit
 
 
     @Test
-    public void distributionWithDumpSlave() throws Exception {
-        DumbSlave slave = JENKINS_PER_SUITE.createSlave();
-        /*
-        FreeStyleProject project = createFreeStyleProject();
-
-        getJenkins().jenkins.getQueue().schedule(project).getFuture().get();
-
-        copySingleFileToAgentWorkspace(slave, project, "eclipse_4_Warnings.txt", "eclipse_4_Warnings-issues.txt");
-        enableEclipseWarnings(project);
-
-
-        getJenkins().jenkins.getQueue().schedule(project).getFuture().get();
-
-        List<AnalysisResult> result = getAnalysisResults(project.getLastBuild());
-        System.out.println(result.size());
-
-*/
-        //executeOnWorker(slave);
-        //buildMavenProjectOnWorker(slave);
-        executePipelineWorker(slave);
-
-        System.out.println("End");
-
+    public void buildMavenOnDumpSlave() throws Exception {
+        DumbSlave worker = setupDumpSlave();
+        buildMavenProjectOnWorker(worker);
     }
-
 
     @Test
-    public void distributionWithDockerSlave() throws Exception {
-        JavaContainer container = DOCKER.create();
-        //JavaContainer container = new JavaContainer();
-        DumbSlave slave = new DumbSlave("docker", "/home/test", new SSHLauncher(container.ipBound(22), container.port(22), "test", "test", "", "-Dfile.encoding=ISO-8859-1"));
-        slave.setNodeProperties(Arrays.asList(new EnvironmentVariablesNodeProperty(new EnvironmentVariablesNodeProperty.Entry("JAVA_HOME", "/usr/lib/jvm/java-8-openjdk-amd64/jre"))));
-        getJenkins().jenkins.addNode(slave);
-        getJenkins().waitOnline(slave);
-
-        //FreeStyleProject project = createFreeStyleProjectWithWorkspaceFiles("eclipse_4_Warnings.txt");
-
-        //enableEclipseWarnings(project);
-        //getJenkins().jenkins.getQueue().schedule(project);
-
-        //executeOnWorker(slave);
-        buildMavenProjectOnWorker(slave);
-
-        System.out.println("End");
-
+    public void buildMavenOnDocker() throws ExecutionException, InterruptedException {
+        DumbSlave worker = setupDockerContainer();
+        buildMavenProjectOnWorker(worker);
     }
+
+    @Test
+    public void buildMakeOnDumpSlave() {
+        DumbSlave worker = setupDumpSlave();
+        buildMakeProjectOnWorker(worker);
+    }
+
+    @Test
+    public void buildMakeOnDocker() {
+        DumbSlave worker = setupDockerContainer();
+        buildMakeProjectOnWorker(worker);
+    }
+
+    private DumbSlave setupDumpSlave() {
+        try {
+            return JENKINS_PER_SUITE.createSlave();
+        }
+        catch (Exception exception) {
+            throw new RuntimeException(exception);
+        }
+    }
+
+    private DumbSlave setupDockerContainer() {
+        DumbSlave worker = null;
+        try {
+            JavaContainer container = DOCKER.create();
+            worker = new DumbSlave("docker", "/home/test", new SSHLauncher(container.ipBound(22), container.port(22), "test", "test", "", "-Dfile.encoding=ISO-8859-1"));
+            worker.setNodeProperties(Arrays.asList(new EnvironmentVariablesNodeProperty(new EnvironmentVariablesNodeProperty.Entry("JAVA_HOME", "/usr/lib/jvm/java-8-openjdk-amd64/jre"))));
+            getJenkins().jenkins.addNode(worker);
+            getJenkins().waitOnline(worker);
+        }
+        catch (Exception exception) {
+            throw new RuntimeException(exception);
+        }
+
+        return worker;
+    }
+
 
     private void executeOnWorker(final Slave worker) throws ExecutionException, InterruptedException, IOException {
         FreeStyleProject project = createFreeStyleProject();
@@ -105,9 +111,14 @@ public class DistributedExecutionITest extends IntegrationTestWithJenkinsPerSuit
         System.out.println(result.size());
     }
 
-    private void buildMavenProjectOnWorker(final Slave worker) throws ExecutionException, InterruptedException, IOException {
+    private void buildMavenProjectOnWorker(final Slave worker) throws ExecutionException, InterruptedException {
         FreeStyleProject project = createFreeStyleProject();
-        project.setAssignedNode(worker);
+        try {
+            project.setAssignedNode(worker);
+        }
+        catch (IOException exception) {
+            throw new RuntimeException(exception);
+        }
 
         System.out.println(getJenkins().jenkins.getSecurity());
         System.out.println(getJenkins().jenkins.getSecurityRealm());
@@ -142,40 +153,31 @@ public class DistributedExecutionITest extends IntegrationTestWithJenkinsPerSuit
         System.out.println(result.size());
     }
 
-    private void buildMakeProjectOnWorker(final Slave worker) throws ExecutionException, InterruptedException, IOException {
+    private void buildMakeProjectOnWorker(final Slave worker) {
         FreeStyleProject project = createFreeStyleProject();
-        project.setAssignedNode(worker);
+        try {
+            project.setAssignedNode(worker);
+        }
+        catch (IOException exception) {
+            throw new RuntimeException(exception);
+        }
 
-        System.out.println(getJenkins().jenkins.getSecurity());
-        System.out.println(getJenkins().jenkins.getSecurityRealm());
-        System.out.println(getJenkins().jenkins.isUseSecurity());
-        getJenkins().jenkins.disableSecurity();
-        System.out.println(getJenkins().jenkins.isUseSecurity());
-        //ToDo Security
+        scheduleBuildAndAssertStatus(project, Result.SUCCESS);
 
-        Set<String> agentProtocols = new HashSet<>();
-        agentProtocols.add("JNLP4-connect");
-        agentProtocols.add("Ping");
-        getJenkins().jenkins.setAgentProtocols(agentProtocols);
 
-        getJenkins().jenkins.getInjector().getInstance(AdminWhitelistRule.class)
-                .setMasterKillSwitch(true);
-
-        getJenkins().jenkins.getQueue().schedule(project).getFuture().get();
-        project.getBuildersList().add(new Shell("make"));
+        //project.getBuildersList().add(new Shell("make"));
+        project.getBuildersList().add(new Maven("verify -Dmaven.compiler.showWarnings=true", null));
 
         copySingleFileToAgentWorkspace(worker, project, "real-sourcecode/ClassWithWarnings.java", "src/main/java/ClassWithWarnings.java");
-        //copySingleFileToAgentWorkspace(worker, project, "eclipse_4_Warnings.txt", "eclipse_4_Warnings-issues.txt");
         copySingleFileToAgentWorkspace(worker, project, "pom.xml", "pom.xml");
-        //enableEclipseWarnings(project);
         enableWarnings(project, createTool(new CheckStyle(),  ""));
         enableWarnings(project, createTool(new Java(),  ""));
         enableWarnings(project, createTool(new MavenConsole(), ""));
 
-
-        getJenkins().jenkins.getQueue().schedule(project).getFuture().get();
+        scheduleBuildAndAssertStatus(project, Result.SUCCESS);
 
         List<AnalysisResult> result = getAnalysisResults(project.getLastBuild());
+        assertThat(project.getLastBuild().getBuiltOn().getLabelString()).isEqualTo(worker.getLabelString());
         System.out.println(result.size());
     }
 
