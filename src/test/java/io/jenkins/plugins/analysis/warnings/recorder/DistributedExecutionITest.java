@@ -1,5 +1,6 @@
 package io.jenkins.plugins.analysis.warnings.recorder;
 
+import java.io.IOException;
 import java.util.Arrays;
 import java.util.HashSet;
 import java.util.List;
@@ -13,22 +14,17 @@ import org.jenkinsci.plugins.workflow.cps.CpsFlowDefinition;
 import org.jenkinsci.plugins.workflow.job.WorkflowJob;
 import org.jenkinsci.test.acceptance.docker.DockerClassRule;
 import org.jenkinsci.test.acceptance.docker.fixtures.JavaContainer;
-import org.jenkinsci.utils.process.CommandBuilder;
 import hudson.model.FreeStyleProject;
 import hudson.model.Result;
 import hudson.model.Slave;
 import hudson.plugins.sshslaves.SSHLauncher;
-import hudson.security.SecurityRealm;
 import hudson.slaves.DumbSlave;
 import hudson.slaves.EnvironmentVariablesNodeProperty;
-import hudson.slaves.NodeProperty;
 import hudson.tasks.Maven;
 
-import jenkins.MasterToSlaveFileCallable;
 import jenkins.security.s2m.AdminWhitelistRule;
 
 import io.jenkins.plugins.analysis.core.model.AnalysisResult;
-import io.jenkins.plugins.analysis.core.steps.IssuesRecorder;
 import io.jenkins.plugins.analysis.core.testutil.IntegrationTestWithJenkinsPerSuite;
 import io.jenkins.plugins.analysis.warnings.Java;
 import io.jenkins.plugins.analysis.warnings.MavenConsole;
@@ -59,7 +55,7 @@ public class DistributedExecutionITest extends IntegrationTestWithJenkinsPerSuit
 
 */
         //executeOnWorker(slave);
-        //executeMavenOnWorker(slave);
+        //buildMavenProjectOnWorker(slave);
         executePipelineWorker(slave);
 
         System.out.println("End");
@@ -82,14 +78,15 @@ public class DistributedExecutionITest extends IntegrationTestWithJenkinsPerSuit
         //getJenkins().jenkins.getQueue().schedule(project);
 
         //executeOnWorker(slave);
-        executeMavenOnWorker(slave);
+        buildMavenProjectOnWorker(slave);
 
         System.out.println("End");
 
     }
 
-    private void executeOnWorker(final Slave worker) throws ExecutionException, InterruptedException {
+    private void executeOnWorker(final Slave worker) throws ExecutionException, InterruptedException, IOException {
         FreeStyleProject project = createFreeStyleProject();
+        project.setAssignedNode(worker);
 
         System.out.println(getJenkins().jenkins.getSecurity());
         System.out.println(getJenkins().jenkins.getSecurityRealm());
@@ -107,8 +104,9 @@ public class DistributedExecutionITest extends IntegrationTestWithJenkinsPerSuit
         System.out.println(result.size());
     }
 
-    private void executeMavenOnWorker(final Slave worker) throws ExecutionException, InterruptedException {
+    private void buildMavenProjectOnWorker(final Slave worker) throws ExecutionException, InterruptedException, IOException {
         FreeStyleProject project = createFreeStyleProject();
+        project.setAssignedNode(worker);
 
         System.out.println(getJenkins().jenkins.getSecurity());
         System.out.println(getJenkins().jenkins.getSecurityRealm());
@@ -128,6 +126,43 @@ public class DistributedExecutionITest extends IntegrationTestWithJenkinsPerSuit
         getJenkins().jenkins.getQueue().schedule(project).getFuture().get();
 
         project.getBuildersList().add(new Maven("verify -Dmaven.compiler.showWarnings=true", null));
+        copySingleFileToAgentWorkspace(worker, project, "real-sourcecode/ClassWithWarnings.java", "src/main/java/ClassWithWarnings.java");
+        //copySingleFileToAgentWorkspace(worker, project, "eclipse_4_Warnings.txt", "eclipse_4_Warnings-issues.txt");
+        copySingleFileToAgentWorkspace(worker, project, "pom.xml", "pom.xml");
+        //enableEclipseWarnings(project);
+        enableWarnings(project, createTool(new CheckStyle(),  ""));
+        enableWarnings(project, createTool(new Java(),  ""));
+        enableWarnings(project, createTool(new MavenConsole(), ""));
+
+
+        getJenkins().jenkins.getQueue().schedule(project).getFuture().get();
+
+        List<AnalysisResult> result = getAnalysisResults(project.getLastBuild());
+        System.out.println(result.size());
+    }
+
+    private void buildMakeProjectOnWorker(final Slave worker) throws ExecutionException, InterruptedException, IOException {
+        FreeStyleProject project = createFreeStyleProject();
+        project.setAssignedNode(worker);
+
+        System.out.println(getJenkins().jenkins.getSecurity());
+        System.out.println(getJenkins().jenkins.getSecurityRealm());
+        System.out.println(getJenkins().jenkins.isUseSecurity());
+        getJenkins().jenkins.disableSecurity();
+        System.out.println(getJenkins().jenkins.isUseSecurity());
+        //ToDo Security
+
+        Set<String> agentProtocols = new HashSet<>();
+        agentProtocols.add("JNLP4-connect");
+        agentProtocols.add("Ping");
+        getJenkins().jenkins.setAgentProtocols(agentProtocols);
+
+        getJenkins().jenkins.getInjector().getInstance(AdminWhitelistRule.class)
+                .setMasterKillSwitch(true);
+
+        getJenkins().jenkins.getQueue().schedule(project).getFuture().get();
+        project.getBuildersList().add(new hudson.tasks.Shell("make"));
+
         copySingleFileToAgentWorkspace(worker, project, "real-sourcecode/ClassWithWarnings.java", "src/main/java/ClassWithWarnings.java");
         //copySingleFileToAgentWorkspace(worker, project, "eclipse_4_Warnings.txt", "eclipse_4_Warnings-issues.txt");
         copySingleFileToAgentWorkspace(worker, project, "pom.xml", "pom.xml");
